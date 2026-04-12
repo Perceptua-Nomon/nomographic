@@ -16,6 +16,15 @@
 |---------|------|--------|
 | V1 | Device State Schema | ✅ Complete |
 
+### Tooling
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 1 | Deployment Automation | ✅ Complete |
+| 2 | Local Migrations Without Flyway | ✅ Complete |
+| 3 | Complete Flyway Removal | ✅ Complete |
+| 4 | Schema Lineage Tracking via MetaTypes | ✅ Complete |
+
 ---
 
 ## Completed
@@ -168,6 +177,42 @@ runners, eliminating all Flyway dependencies from the project.
 - `./scripts/migrate.sh validate` validates central migration checksums.
 - `./scripts/init-db.sh all` succeeds end-to-end.
 - ADR-002 accepted and linked.
+
+## Phase 4 — Schema Lineage Tracking via MetaTypes (Implemented)
+
+Goal: automatically track which migrations touched which schema types,
+forming a chronological linked list of changes per type via MetaType
+vertices and Supersedes edges.
+
+### Deliverables
+
+- [x] Shared library `scripts/lib/migrate-common.sh` — extracted lineage
+  logic consumed by both `migrate.sh` and `migrate-local.sh`
+- [x] `parse_affected_types` — SQL parser extracting type names and change
+  classifications (created / modified / deleted) from migration files
+- [x] `record_lineage` — post-migration hook that creates `{Type}Meta`
+  vertices and `Supersedes` edges after each migration is applied
+- [x] `reconcile-lineage` subcommand added to both `migrate.sh` and
+  `migrate-local.sh` — replays lineage for all previously applied
+  migrations (idempotent)
+- [x] `Supersedes` edge type: links previous MetaType head → new MetaType
+  record, forming a chronological linked list per schema type
+- [x] MetaType naming convention: `{Type}Meta` (e.g. `VehicleMeta`,
+  `DeviceStateMeta`)
+- [x] Lineage types are self-excluded from tracking (MetaType and
+  Supersedes are filtered out by `parse_affected_types`)
+
+### Phase 4 Exit Criteria
+
+- `./scripts/migrate.sh migrate` records lineage automatically.
+- `./scripts/migrate-local.sh migrate` records lineage automatically.
+- `./scripts/migrate.sh reconcile-lineage` replays all central lineage.
+- `./scripts/migrate-local.sh reconcile-lineage` replays all local lineage.
+- MetaType records are idempotent — re-running does not duplicate records.
+- `SchemaMigration`, `*Meta`, and `Supersedes` types are excluded from
+  lineage tracking.
+
+---
 
 - **V2 Local — AI Context:** On-device intelligence data (learned patterns,
   environment models) if local AI features are added.

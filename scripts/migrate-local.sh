@@ -40,8 +40,12 @@ BASE_URL="http://127.0.0.1:${LOCAL_MIGRATOR_HTTP_PORT}"
 AUTH="root:${LOCAL_MIGRATOR_ROOT_PASSWORD}"
 CONTAINER_NAME="nomon-local-migrator-$$"
 
+REPO_RELATIVE_PREFIX="local/sql"
+
+source "$SCRIPT_DIR/lib/migrate-common.sh"
+
 usage() {
-    echo "Usage: $0 [migrate|validate|info]"
+    echo "Usage: $0 [migrate|validate|info|reconcile-lineage]"
     echo ""
     echo "Apply or inspect local embedded migrations using ArcadeDB API."
     exit 1
@@ -277,6 +281,8 @@ apply_migrations() {
 
         run_sql "INSERT INTO SchemaMigration SET version = '${escaped_version}', description = '${escaped_description}', script = '${escaped_file}', checksum = '${escaped_checksum}', applied_at = sysdate()" "record migration ${file_name}" >/dev/null
 
+        record_lineage "$file_path" "local/sql/${file_name}"
+
         applied_count=$((applied_count + 1))
     done
 
@@ -346,7 +352,7 @@ info_migrations() {
 }
 
 case "$SUBCOMMAND" in
-    migrate|validate|info)
+    migrate|validate|info|reconcile-lineage)
         ;;
     *)
         echo "Error: unknown subcommand '${SUBCOMMAND}'."
@@ -373,5 +379,9 @@ case "$SUBCOMMAND" in
         ;;
     info)
         info_migrations
+        ;;
+    reconcile-lineage)
+        echo "==> Reconciling local schema lineage ..."
+        reconcile_all_lineage
         ;;
 esac

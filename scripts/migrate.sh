@@ -32,8 +32,12 @@ ARCADEDB_CENTRAL_DB="nomon_central"
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
 
+REPO_RELATIVE_PREFIX="central/sql"
+
+source "$SCRIPT_DIR/lib/migrate-common.sh"
+
 usage() {
-    echo "Usage: $0 [migrate|validate|info]"
+    echo "Usage: $0 [migrate|validate|info|reconcile-lineage]"
     echo ""
     echo "Apply or inspect central migrations using ArcadeDB API."
     exit 1
@@ -200,6 +204,8 @@ apply_migrations() {
 
         run_sql "INSERT INTO SchemaMigration SET version = '${escaped_version}', description = '${escaped_description}', script = '${escaped_file}', checksum = '${escaped_checksum}', applied_at = sysdate()" "record migration ${file_name}" >/dev/null
 
+        record_lineage "$file_path" "central/sql/${file_name}"
+
         applied_count=$((applied_count + 1))
     done
 
@@ -269,7 +275,7 @@ info_migrations() {
 }
 
 case "$SUBCOMMAND" in
-    migrate|validate|info)
+    migrate|validate|info|reconcile-lineage)
         ;;
     *)
         echo "Error: unknown subcommand '${SUBCOMMAND}'."
@@ -291,5 +297,9 @@ case "$SUBCOMMAND" in
         ;;
     info)
         info_migrations
+        ;;
+    reconcile-lineage)
+        echo "==> Reconciling central schema lineage ..."
+        reconcile_all_lineage
         ;;
 esac
