@@ -1,0 +1,12 @@
+# Flyway configuration for the nomon central fleet database.
+# ArcadeDB server instance — stores fleet-wide vehicle data,
+# telemetry history, user records, and cross-device analytics.
+
+[flyway]
+locations = ["filesystem:central/sql"]
+
+[environments.default]
+url = "jdbc:arcadedb:remote:localhost/nomon_central"
+# Credentials: set via environment variables or flyway-central.secret.toml
+# user = ...
+# password = ...

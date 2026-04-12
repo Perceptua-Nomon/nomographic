@@ -1,0 +1,29 @@
+# ArcadeDB service for the nomon central fleet database.
+# Usage:
+#   docker compose up -d          # start
+#   docker compose down           # stop (preserves data)
+#   docker compose down -v        # stop and delete data
+
+services:
+  arcadedb:
+    image: arcadedata/arcadedb:latest
+    container_name: nomon-arcadedb
+    ports:
+      - "${ARCADEDB_HTTP_PORT:-2480}:2480"
+      - "${ARCADEDB_BINARY_PORT:-2424}:2424"
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.rootPassword=${ARCADEDB_ROOT_PASSWORD:?Set ARCADEDB_ROOT_PASSWORD in .env}
+        -Darcadedb.server.plugins=GremlinServer:com.arcadedb.server.gremlin.GremlinServerPlugin
+    volumes:
+      - arcadedb-data:/home/arcadedb/databases
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2480/api/v1/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  arcadedb-data:

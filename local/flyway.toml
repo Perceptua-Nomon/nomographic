@@ -1,0 +1,11 @@
+# Flyway configuration for the nomon local embedded database.
+# ArcadeDB embedded instance — deployed to each nomon device.
+# Stores operational state and local intelligence data.
+
+[flyway]
+locations = ["filesystem:local/sql"]
+
+[environments.default]
+url = "jdbc:arcadedb:local/data/nomon_local"
+# Embedded mode: no credentials required by default.
+# Override via environment variables if access control is enabled.
