@@ -2,7 +2,7 @@
 # Run central migrations using ArcadeDB HTTP API.
 #
 # Usage:
-#   ./scripts/migrate.sh [migrate|validate|info]
+#   ./scripts/migrate-central.sh [migrate|validate|info|reconcile-lineage]
 #
 # Environment variables:
 #   ARCADEDB_HOST              ArcadeDB server hostname (default: localhost)

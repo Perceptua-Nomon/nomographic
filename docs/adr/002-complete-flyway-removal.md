@@ -33,7 +33,7 @@ and idempotency without external tooling.
 Remove all Flyway dependencies and unify both central and local migration
 targets on ArcadeDB HTTP API runners.
 
-- `scripts/migrate.sh` is rewritten as an ArcadeDB HTTP API runner for
+- `scripts/migrate-central.sh` is rewritten as an ArcadeDB HTTP API runner for
   central migrations, matching the pattern established by
   `scripts/migrate-local.sh`.
 - Both runners track state via `SchemaMigration` vertex records with
@@ -57,7 +57,7 @@ targets on ArcadeDB HTTP API runners.
 
 Positive:
 - Zero external migration tool dependencies.
-- Unified migration UX: `./scripts/migrate.sh [migrate|validate|info]` for
+- Unified migration UX: `./scripts/migrate-central.sh [migrate|validate|info]` for
   central, `./scripts/migrate-local.sh [migrate|validate|info]` for local.
 - Reduced `.env.example` surface — fewer variables to configure.
 - All migration state is stored in ArcadeDB itself (`SchemaMigration` vertex
@@ -71,10 +71,10 @@ Trade-offs:
 
 ## Implementation Notes
 
-- `scripts/migrate.sh` connects to the already-running ArcadeDB server (no
+- `scripts/migrate-central.sh` connects to the already-running ArcadeDB server (no
   container management) and executes `central/sql/V*__*.sql` in version
   order.
-- `scripts/init-db.sh` updated to call `migrate.sh` without the `central`
+- `scripts/init-db.sh` updated to call `migrate-central.sh` without the `central`
   positional argument.
 - Both `central/flyway.toml` and `local/flyway.toml` deleted.
 - Flyway-specific entries removed from `.env.example` and `.gitignore`.
@@ -83,7 +83,7 @@ Trade-offs:
 
 ## Verification Requirements
 
-- `./scripts/migrate.sh migrate` applies central migrations successfully.
-- `./scripts/migrate.sh validate` passes with matching checksums.
+- `./scripts/migrate-central.sh migrate` applies central migrations successfully.
+- `./scripts/migrate-central.sh validate` passes with matching checksums.
 - `./scripts/init-db.sh all` succeeds on clean and already-migrated states.
 - `grep -ri flyway` across the workspace returns zero matches.

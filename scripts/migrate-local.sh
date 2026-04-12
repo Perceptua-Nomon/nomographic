@@ -2,7 +2,7 @@
 # Run local embedded migrations using ArcadeDB HTTP API.
 #
 # Usage:
-#   ./scripts/migrate-local.sh [migrate|validate|info]
+#   ./scripts/migrate-local.sh [migrate|validate|info|reconcile-lineage]
 #
 # Environment variables:
 #   ARCADEDB_LOCAL_DATA               Path for local embedded data (default: local/data)

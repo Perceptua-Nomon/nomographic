@@ -34,7 +34,7 @@ Adopt a split migration strategy:
 
 Implemented as:
 
-- `scripts/migrate.sh central [migrate|validate|info]` for central Flyway
+- `scripts/migrate-central.sh [migrate|validate|info]` for central Flyway
 - `scripts/migrate-local.sh [migrate|validate|info]` for local migrations
 - `SchemaMigration` metadata records in `nomon_local` with checksum tracking
 
@@ -62,7 +62,7 @@ Trade-offs:
 ## Implementation Notes
 
 - Introduce a dedicated local migration script path under `scripts/`.
-- Keep central `migrate.sh` behavior stable for Flyway users.
+- Keep central `migrate-central.sh` behavior stable for Flyway users.
 - Update `init-db.sh` to dispatch local migrations through console runner.
 - Update README and architecture docs to document the split workflow.
 - Add rollback procedure for partial local migration failures.

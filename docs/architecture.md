@@ -112,7 +112,7 @@ from the filesystem.
 
 Migrations use a unified strategy:
 
-- Central: ArcadeDB API runner (`scripts/migrate.sh`) over `central/sql/V*__*.sql`
+- Central: ArcadeDB API runner (`scripts/migrate-central.sh`) over `central/sql/V*__*.sql`
 - Local: ArcadeDB API runner (`scripts/migrate-local.sh`) over `local/sql/V*__*.sql`
 
 **Key rules:**
@@ -161,14 +161,14 @@ lineage tracking was added.
 
 ```bash
 # Reconcile central lineage
-./scripts/migrate.sh reconcile-lineage
+./scripts/migrate-central.sh reconcile-lineage
 
 # Reconcile local lineage
 ./scripts/migrate-local.sh reconcile-lineage
 ```
 
 **Shared library:** All lineage logic lives in `scripts/lib/migrate-common.sh`,
-sourced by both `migrate.sh` and `migrate-local.sh`. The library requires
+sourced by both `migrate-central.sh` and `migrate-local.sh`. The library requires
 three functions to be defined in the caller's scope: `run_sql`,
 `escape_sql_literal`, and `record_count`.
 
@@ -251,9 +251,9 @@ Four shell scripts in `scripts/` automate database lifecycle tasks:
 | Script | Purpose |
 |--------|---------|
 | `init-db.sh` | Waits for ArcadeDB health and initializes selected targets. Central and local both use ArcadeDB API runners. Accepts `central`, `local`, or `all` (default). |
-| `migrate.sh` | Central migration runner. Applies `migrate`, `validate`, `info`, or `reconcile-lineage` for `nomon_central` via ArcadeDB HTTP API. |
+| `migrate-central.sh` | Central migration runner. Applies `migrate`, `validate`, `info`, or `reconcile-lineage` for `nomon_central` via ArcadeDB HTTP API. |
 | `migrate-local.sh` | Local migration runner. Applies `migrate`, `validate`, `info`, or `reconcile-lineage` for local SQL scripts in version order and tracks state/checksums in `SchemaMigration`. |
-| `seed.sh` | Inserts test data (user, vehicle, ownership edge) into `nomon_central` via HTTP API. Idempotent — checks for existing records before inserting. |
+| `seed-central.sh` | Inserts test data (user, vehicle, ownership edge) into `nomon_central` via HTTP API. Idempotent — checks for existing records before inserting. |
 | `lib/migrate-common.sh` | Shared lineage tracking library. Provides `parse_affected_types`, `record_lineage`, `reconcile_all_lineage`, and MetaType/Supersedes management. Sourced by both migration runners. |
 
 All scripts use `set -euo pipefail`, read configuration from environment
@@ -269,10 +269,10 @@ docker compose up -d
 ./scripts/init-db.sh
 
 # Seed test data
-./scripts/seed.sh
+./scripts/seed-central.sh
 
 # Check migration status
-./scripts/migrate.sh info
+./scripts/migrate-central.sh info
 ./scripts/migrate-local.sh info
 
 # Tear down (preserves data volume)

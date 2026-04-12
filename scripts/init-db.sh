@@ -99,7 +99,7 @@ init_central() {
     wait_for_arcadedb
     create_central_database
     echo "==> Running central migrations ..."
-    "$SCRIPT_DIR/migrate.sh" migrate
+    "$SCRIPT_DIR/migrate-central.sh" migrate
 }
 
 init_local() {

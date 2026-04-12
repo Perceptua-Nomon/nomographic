@@ -2,7 +2,7 @@
 # Seed the nomon_central database with test data.
 #
 # Usage:
-#   ./scripts/seed.sh
+#   ./scripts/seed-central.sh
 #
 # Creates:
 #   - Test user: test@nomon.dev (password: testpassword123)
