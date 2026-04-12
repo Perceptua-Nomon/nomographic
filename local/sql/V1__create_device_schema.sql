@@ -10,11 +10,11 @@
 -- Singleton-like record holding current operational state.
 -- -------------------------------------------------------------
 CREATE VERTEX TYPE DeviceState IF NOT EXISTS;
-ALTER TYPE DeviceState IF NOT EXISTS CREATE PROPERTY device_id STRING;
-ALTER TYPE DeviceState IF NOT EXISTS CREATE PROPERTY firmware_version STRING;
-ALTER TYPE DeviceState IF NOT EXISTS CREATE PROPERTY boot_count LONG;
-ALTER TYPE DeviceState IF NOT EXISTS CREATE PROPERTY last_boot_at DATETIME;
-ALTER TYPE DeviceState IF NOT EXISTS CREATE PROPERTY status STRING;
+CREATE PROPERTY DeviceState.device_id IF NOT EXISTS STRING;
+CREATE PROPERTY DeviceState.firmware_version IF NOT EXISTS STRING;
+CREATE PROPERTY DeviceState.boot_count IF NOT EXISTS LONG;
+CREATE PROPERTY DeviceState.last_boot_at IF NOT EXISTS DATETIME;
+CREATE PROPERTY DeviceState.status IF NOT EXISTS STRING;
 
 CREATE INDEX IF NOT EXISTS ON DeviceState (device_id) UNIQUE;
 
@@ -24,10 +24,10 @@ CREATE INDEX IF NOT EXISTS ON DeviceState (device_id) UNIQUE;
 -- on-device intelligence. Older entries can be pruned.
 -- -------------------------------------------------------------
 CREATE VERTEX TYPE OperationLog IF NOT EXISTS;
-ALTER TYPE OperationLog IF NOT EXISTS CREATE PROPERTY operation STRING;
-ALTER TYPE OperationLog IF NOT EXISTS CREATE PROPERTY result STRING;
-ALTER TYPE OperationLog IF NOT EXISTS CREATE PROPERTY detail STRING;
-ALTER TYPE OperationLog IF NOT EXISTS CREATE PROPERTY occurred_at DATETIME;
+CREATE PROPERTY OperationLog.operation IF NOT EXISTS STRING;
+CREATE PROPERTY OperationLog.result IF NOT EXISTS STRING;
+CREATE PROPERTY OperationLog.detail IF NOT EXISTS STRING;
+CREATE PROPERTY OperationLog.occurred_at IF NOT EXISTS DATETIME;
 
 CREATE INDEX IF NOT EXISTS ON OperationLog (occurred_at) NOTUNIQUE;
 
@@ -36,4 +36,4 @@ CREATE INDEX IF NOT EXISTS ON OperationLog (occurred_at) NOTUNIQUE;
 -- Links DeviceState to its OperationLog entries.
 -- -------------------------------------------------------------
 CREATE EDGE TYPE Performed IF NOT EXISTS;
-ALTER TYPE Performed IF NOT EXISTS CREATE PROPERTY occurred_at DATETIME;
+CREATE PROPERTY Performed.occurred_at IF NOT EXISTS DATETIME;

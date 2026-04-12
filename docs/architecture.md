@@ -46,8 +46,7 @@ Runs as an ArcadeDB server instance on dedicated infrastructure. Stores
 fleet-wide data that spans multiple devices and users.
 
 **Access:** nomothetic (central mode) connects via ArcadeDB's HTTP API.
-Credentials are provided through environment variables or a Flyway secret
-config file (gitignored).
+Credentials are provided through the `ARCADEDB_ROOT_PASSWORD` environment variable.
 
 **Use cases:**
 - User registration and authentication (password hashes, profiles)
@@ -79,15 +78,16 @@ from the filesystem.
 | Properties | snake_case | `battery_voltage`, `created_at`, `device_id` |
 | Indexes | Auto-named by ArcadeDB | `CREATE INDEX IF NOT EXISTS ON Type (prop)` |
 
-### Central Schema (current: V2)
+### Central Schema (current: V3)
 
 | Type | Kind | Properties | Indexes |
-|------|------|-----------|---------|
+|------|------|-----------|--------|
 | `Vehicle` | Vertex | `vin`, `model`, `firmware_version`, `registered_at`, `last_seen_at` | `vin` UNIQUE |
 | `TelemetryReading` | Vertex | `battery_voltage`, `cpu_temp_c`, `uptime_seconds`, `recorded_at` | `recorded_at` NOTUNIQUE |
 | `HasTelemetry` | Edge | `recorded_at` | — |
 | `User` | Vertex | `email`, `display_name`, `password_hash`, `created_at`, `last_login_at`, `active` | `email` UNIQUE |
 | `OwnsDevice` | Edge | `registered_at`, `role` | — |
+| `RefreshToken` | Vertex | `token_hash`, `email`, `created_at`, `expires_at` | `token_hash` UNIQUE, `email` NOTUNIQUE, `expires_at` NOTUNIQUE |
 
 ### Local Schema (current: V1)
 
@@ -99,7 +99,10 @@ from the filesystem.
 
 ## Migration Strategy
 
-Migrations use [Flyway](https://flywaydb.org/) with versioned SQL scripts.
+Migrations use a unified strategy:
+
+- Central: ArcadeDB API runner (`scripts/migrate.sh`) over `central/sql/V*__*.sql`
+- Local: ArcadeDB API runner (`scripts/migrate-local.sh`) over `local/sql/V*__*.sql`
 
 **Key rules:**
 1. `IF NOT EXISTS` on all `CREATE` statements (idempotent)
@@ -108,15 +111,15 @@ Migrations use [Flyway](https://flywaydb.org/) with versioned SQL scripts.
 4. Central and local version numbers are independent
 5. Credentials never appear in migration files or committed configs
 
-**Flyway configs:**
-- `central/flyway.toml` — points to `central/sql/`, connects to remote server
-- `local/flyway.toml` — points to `local/sql/`, opens embedded database
+**Migration configs:**
+- Central runner metadata stored in `SchemaMigration` vertex records in `nomon_central`
+- Local runner metadata stored in `SchemaMigration` vertex records in `nomon_local`
 
 ## Query Language Strategy
 
 **DDL (migrations):** ArcadeDB-native SQL. Schema definition is inherently
 engine-specific — there is no portable DDL standard for graph databases.
-Flyway migrations will always target the active engine.
+Both central and local ArcadeDB API runners execute ArcadeDB SQL migrations.
 
 **DML (application queries):** Use **Apache TinkerPop Gremlin** for all
 application-layer graph queries. Gremlin is the most widely supported
@@ -135,7 +138,7 @@ migrations and connection configuration would need to change.
 ```sql
 -- Vertex type creation
 CREATE VERTEX TYPE TypeName IF NOT EXISTS;
-ALTER TYPE TypeName IF NOT EXISTS CREATE PROPERTY prop_name TYPE;
+CREATE PROPERTY TypeName.prop_name IF NOT EXISTS TYPE;
 
 -- Edge type creation
 CREATE EDGE TYPE EdgeName IF NOT EXISTS;
@@ -164,7 +167,7 @@ g.V().has('Vehicle', 'vin', 'NM-001').out('HasTelemetry').order().by('recorded_a
 ## Security
 
 - Database credentials are never committed to source
-- Central mode: credentials via env vars or `flyway-central.secret.toml` (gitignored)
+- Central mode: credentials via `ARCADEDB_ROOT_PASSWORD` env var
 - Local mode: embedded, no credentials by default
 - Password hashes in the `User` vertex are bcrypt hashes — never stored in
   plaintext
@@ -186,12 +189,13 @@ development and testing. Key features:
 
 ### Scripts
 
-Three shell scripts in `scripts/` automate database lifecycle tasks:
+Four shell scripts in `scripts/` automate database lifecycle tasks:
 
 | Script | Purpose |
 |--------|---------|
-| `init-db.sh` | Waits for ArcadeDB health, creates database instances, runs all Flyway migrations. Accepts `central`, `local`, or `all` (default). |
-| `migrate.sh` | Thin wrapper around Flyway CLI. Builds JDBC URL from environment variables and runs `migrate`, `validate`, or `info` for a given instance. |
+| `init-db.sh` | Waits for ArcadeDB health and initializes selected targets. Central and local both use ArcadeDB API runners. Accepts `central`, `local`, or `all` (default). |
+| `migrate.sh` | Central migration runner. Applies `migrate`, `validate`, or `info` for `nomon_central` via ArcadeDB HTTP API. |
+| `migrate-local.sh` | Local migration runner. Applies local SQL scripts in version order and tracks state/checksums in `SchemaMigration`. |
 | `seed.sh` | Inserts test data (user, vehicle, ownership edge) into `nomon_central` via HTTP API. Idempotent — checks for existing records before inserting. |
 
 All scripts use `set -euo pipefail`, read configuration from environment
@@ -210,8 +214,8 @@ docker compose up -d
 ./scripts/seed.sh
 
 # Check migration status
-./scripts/migrate.sh central info
-./scripts/migrate.sh local info
+./scripts/migrate.sh info
+./scripts/migrate-local.sh info
 
 # Tear down (preserves data volume)
 docker compose down

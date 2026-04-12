@@ -19,6 +19,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Load project .env so script credentials match docker compose defaults.
+if [ -f "$PROJECT_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$PROJECT_DIR/.env"
+    set +a
+fi
+
 TARGET="${1:-all}"
 
 ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
@@ -33,7 +41,7 @@ BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 usage() {
     echo "Usage: $0 [central|local|all]"
     echo ""
-    echo "Initialize nomon databases and run Flyway migrations."
+    echo "Initialize nomon databases and run central/local migrations."
     echo ""
     echo "Arguments:"
     echo "  central    Create and migrate central database only"
@@ -91,15 +99,14 @@ init_central() {
     wait_for_arcadedb
     create_central_database
     echo "==> Running central migrations ..."
-    ARCADEDB_PASSWORD="$ARCADEDB_ROOT_PASSWORD" \
-        "$SCRIPT_DIR/migrate.sh" central migrate
+    "$SCRIPT_DIR/migrate.sh" migrate
 }
 
 init_local() {
     create_local_database
     echo "==> Running local migrations ..."
     ARCADEDB_LOCAL_DATA="$ARCADEDB_LOCAL_DATA" \
-        "$SCRIPT_DIR/migrate.sh" local migrate
+    "$SCRIPT_DIR/migrate-local.sh" migrate
 }
 
 case "$TARGET" in

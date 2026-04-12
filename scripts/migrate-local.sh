@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Run central migrations using ArcadeDB HTTP API.
+# Run local embedded migrations using ArcadeDB HTTP API.
 #
 # Usage:
-#   ./scripts/migrate.sh [migrate|validate|info]
+#   ./scripts/migrate-local.sh [migrate|validate|info]
 #
 # Environment variables:
-#   ARCADEDB_HOST              ArcadeDB server hostname (default: localhost)
-#   ARCADEDB_HTTP_PORT         ArcadeDB HTTP API port (default: 2480)
-#   ARCADEDB_ROOT_PASSWORD     Root password (default: testpassword)
+#   ARCADEDB_LOCAL_DATA               Path for local embedded data (default: local/data)
+#   ARCADEDB_LOCAL_DB                 Local database name (default: nomon_local)
+#   LOCAL_MIGRATOR_IMAGE              ArcadeDB Docker image (default: arcadedata/arcadedb:latest)
+#   LOCAL_MIGRATOR_HTTP_PORT          Local temporary migrator HTTP port (default: 2481)
+#   LOCAL_MIGRATOR_ROOT_PASSWORD      Root password used by temporary migrator (default: testpassword)
+#   LOCAL_MIGRATOR_STARTUP_RETRIES    Readiness retries (default: 30)
+#   LOCAL_MIGRATOR_STARTUP_DELAY      Seconds between readiness retries (default: 1)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-MIGRATIONS_DIR="$PROJECT_DIR/central/sql"
+MIGRATIONS_DIR="$PROJECT_DIR/local/sql"
 
 if [ -f "$PROJECT_DIR/.env" ]; then
     set -a
@@ -24,18 +28,22 @@ fi
 
 SUBCOMMAND="${1:-migrate}"
 
-ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
-ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
-ARCADEDB_CENTRAL_DB="nomon_central"
+ARCADEDB_LOCAL_DATA="${ARCADEDB_LOCAL_DATA:-local/data}"
+ARCADEDB_LOCAL_DB="${ARCADEDB_LOCAL_DB:-nomon_local}"
+LOCAL_MIGRATOR_IMAGE="${LOCAL_MIGRATOR_IMAGE:-arcadedata/arcadedb:latest}"
+LOCAL_MIGRATOR_HTTP_PORT="${LOCAL_MIGRATOR_HTTP_PORT:-2481}"
+LOCAL_MIGRATOR_ROOT_PASSWORD="${LOCAL_MIGRATOR_ROOT_PASSWORD:-testpassword}"
+LOCAL_MIGRATOR_STARTUP_RETRIES="${LOCAL_MIGRATOR_STARTUP_RETRIES:-30}"
+LOCAL_MIGRATOR_STARTUP_DELAY="${LOCAL_MIGRATOR_STARTUP_DELAY:-1}"
 
-BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
-AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
+BASE_URL="http://127.0.0.1:${LOCAL_MIGRATOR_HTTP_PORT}"
+AUTH="root:${LOCAL_MIGRATOR_ROOT_PASSWORD}"
+CONTAINER_NAME="nomon-local-migrator-$$"
 
 usage() {
     echo "Usage: $0 [migrate|validate|info]"
     echo ""
-    echo "Apply or inspect central migrations using ArcadeDB API."
+    echo "Apply or inspect local embedded migrations using ArcadeDB API."
     exit 1
 }
 
@@ -73,6 +81,17 @@ sha256_file() {
     exit 127
 }
 
+api_server_command() {
+    local command="$1"
+    local payload
+    payload="{\"command\":\"$(escape_json "$command")\"}"
+    curl -sS -w "\n%{http_code}" \
+        -u "$AUTH" \
+        -X POST "${BASE_URL}/api/v1/server" \
+        -H "Content-Type: application/json" \
+        -d "$payload"
+}
+
 api_db_sql() {
     local sql="$1"
     local lang="${2:-sqlscript}"
@@ -80,7 +99,7 @@ api_db_sql() {
     payload="{\"language\":\"${lang}\",\"command\":\"$(escape_json "$sql")\"}"
     curl -sS -w "\n%{http_code}" \
         -u "$AUTH" \
-        -X POST "${BASE_URL}/api/v1/command/${ARCADEDB_CENTRAL_DB}" \
+        -X POST "${BASE_URL}/api/v1/command/${ARCADEDB_LOCAL_DB}" \
         -H "Content-Type: application/json" \
         -d "$payload"
 }
@@ -132,6 +151,64 @@ record_checksum() {
     echo "$result" | sed -n 's/.*"checksum":"\([^"]*\)".*/\1/p' | head -1
 }
 
+wait_for_arcadedb() {
+    echo "==> Waiting for local migrator API on ${BASE_URL} ..."
+    local attempt=0
+    while [ "$attempt" -lt "$LOCAL_MIGRATOR_STARTUP_RETRIES" ]; do
+        if curl -sf "${BASE_URL}/api/v1/ready" >/dev/null 2>&1; then
+            echo "==> Local migrator API is ready."
+            return
+        fi
+        attempt=$((attempt + 1))
+        sleep "$LOCAL_MIGRATOR_STARTUP_DELAY"
+    done
+    echo "Error: local migrator did not become ready in time."
+    docker logs "$CONTAINER_NAME" 2>/dev/null || true
+    exit 1
+}
+
+cleanup() {
+    if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+        docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    fi
+}
+
+start_local_migrator() {
+    local host_data_dir="$PROJECT_DIR/$ARCADEDB_LOCAL_DATA"
+    mkdir -p "$host_data_dir"
+
+    echo "==> Starting temporary local migrator container (${LOCAL_MIGRATOR_IMAGE}) ..."
+    docker run -d --rm \
+        --name "$CONTAINER_NAME" \
+        -p "${LOCAL_MIGRATOR_HTTP_PORT}:2480" \
+        -e "JAVA_OPTS=-Darcadedb.server.rootPassword=${LOCAL_MIGRATOR_ROOT_PASSWORD}" \
+        -v "${host_data_dir}:/home/arcadedb/databases" \
+        "$LOCAL_MIGRATOR_IMAGE" >/dev/null
+
+    wait_for_arcadedb
+}
+
+ensure_local_database() {
+    local response
+    local http_code
+    response="$(api_server_command "create database ${ARCADEDB_LOCAL_DB}")"
+    http_code="$(echo "$response" | tail -1)"
+    response="$(echo "$response" | sed '$d')"
+
+    if [ "$http_code" = "200" ]; then
+        echo "==> Database ${ARCADEDB_LOCAL_DB} created."
+        return
+    fi
+
+    if [ "$http_code" = "400" ] && echo "$response" | grep -qi "already exists"; then
+        echo "==> Database ${ARCADEDB_LOCAL_DB} already exists."
+        return
+    fi
+
+    echo "Error: failed to ensure database ${ARCADEDB_LOCAL_DB} (HTTP ${http_code}): ${response}"
+    exit 1
+}
+
 ensure_metadata_schema() {
     run_sql "CREATE VERTEX TYPE SchemaMigration IF NOT EXISTS" "create SchemaMigration type" >/dev/null
     run_sql "CREATE PROPERTY SchemaMigration.version IF NOT EXISTS STRING" "create version property" >/dev/null
@@ -144,14 +221,14 @@ ensure_metadata_schema() {
 
 load_migration_files() {
     if [ ! -d "$MIGRATIONS_DIR" ]; then
-        echo "Error: central migrations directory not found: $MIGRATIONS_DIR"
+        echo "Error: local migrations directory not found: $MIGRATIONS_DIR"
         exit 1
     fi
 
     mapfile -t MIGRATION_FILES < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name 'V*__*.sql' | sort -V)
 
     if [ "${#MIGRATION_FILES[@]}" -eq 0 ]; then
-        echo "Error: no central migration files found in $MIGRATIONS_DIR"
+        echo "Error: no local migration files found in $MIGRATIONS_DIR"
         exit 1
     fi
 }
@@ -203,7 +280,7 @@ apply_migrations() {
         applied_count=$((applied_count + 1))
     done
 
-    echo "==> Central migration apply complete (${applied_count} newly applied)."
+    echo "==> Local migration apply complete (${applied_count} newly applied)."
 }
 
 validate_migrations() {
@@ -240,15 +317,15 @@ validate_migrations() {
     done
 
     if [ "$mismatches" -gt 0 ]; then
-        echo "Error: central migration validation failed with ${mismatches} checksum mismatch(es)."
+        echo "Error: local migration validation failed with ${mismatches} checksum mismatch(es)."
         exit 1
     fi
 
-    echo "==> Central migration validation complete (${pending} pending)."
+    echo "==> Local migration validation complete (${pending} pending)."
 }
 
 info_migrations() {
-    echo "==> Central migration status"
+    echo "==> Local migration status"
     for file_path in "${MIGRATION_FILES[@]}"; do
         local file_name
         local version
@@ -277,8 +354,13 @@ case "$SUBCOMMAND" in
         ;;
 esac
 
+require_command docker
 require_command curl
 
+trap cleanup EXIT
+
+start_local_migrator
+ensure_local_database
 ensure_metadata_schema
 load_migration_files
 

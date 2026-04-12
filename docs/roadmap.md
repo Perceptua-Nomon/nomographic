@@ -8,6 +8,7 @@
 |---------|------|--------|
 | V1 | Vehicle & Telemetry Schema | ✅ Complete |
 | V2 | User & Device Ownership Schema | ✅ Complete |
+| V3 | Refresh Token Storage | ✅ Complete |
 
 ### Local Database
 
@@ -66,18 +67,10 @@ User ──OwnsDevice──▶ Vehicle ──HasTelemetry──▶ TelemetryRead
 ```
 
 **Exit criteria:**
-- ✅ `flyway -configFiles=central/flyway.toml validate` passes
-- ✅ `flyway -configFiles=central/flyway.toml migrate` applies cleanly
+- ✅ `./scripts/migrate.sh validate` passes
+- ✅ `./scripts/migrate.sh migrate` applies cleanly
 - ✅ `User` vertex type queryable with email lookup
 - ✅ `OwnsDevice` edge traversable from User to Vehicle
-
----
-
-## Future Considerations
-
-- **V3 Central — Refresh Token Storage:** Dedicated `RefreshToken` vertex
-  type if multi-device session management is needed (single-token-per-user
-  may suffice initially).
 
 ---
 
@@ -93,6 +86,89 @@ Tooling to make the databases runnable with a single command.
 - [x] `.gitignore` — Ignores `.env`, data directories, secret configs
 - [x] README Quick Start section — single-command setup instructions
 - [x] Architecture doc — Deployment Automation section describing scripts and Docker Compose
+
+---
+
+## Phase 2 — Local Migrations Without Flyway (Implemented)
+
+Goal: keep nomographic self-contained by removing Flyway from the local
+embedded workflow and using ArcadeDB console-driven migrations for local
+schema evolution, while preserving Flyway for central server migrations.
+
+### 2.1 — Local migration runner and script split
+
+- [x] Add local migration runner script (ArcadeDB console/API based) to apply
+  `local/sql/V*__*.sql` in version order and persist applied versions in
+  local database metadata.
+- [x] Refactor `scripts/migrate.sh` to central-only Flyway path.
+- [x] Route local workflows to `scripts/migrate-local.sh`.
+- [x] Update `scripts/init-db.sh` so `local` target uses the console runner.
+
+### 2.2 — Dependency and compose updates
+
+- [x] Update `.env.example` migration variables so local workflow does not
+  require Flyway-specific settings.
+- [x] Add/adjust Docker helper configuration so the ArcadeDB console/API path can run
+  reproducibly in CI/dev even when host tools are missing.
+- [x] Keep central Flyway config intact (`central/flyway.toml`).
+
+### 2.3 — Documentation and ADR
+
+- [x] Add ADR documenting migration strategy split:
+  `docs/adr/001-local-console-migrations.md`
+  - central = Flyway
+  - local = ArcadeDB console runner
+- [x] Update README commands and quick-start flow to remove local Flyway
+  examples and replace with local console migration commands.
+- [x] Update `docs/architecture.md` migration strategy and script reference to
+  reflect the split model.
+
+### 2.4 — Validation and rollback
+
+- [x] Add verification steps for central and local migration paths:
+  - central: Flyway `validate` and `migrate`
+  - local: runner `validate/info` and idempotent rerun
+- [x] Document rollback playbook for local migration failures
+  (restore local data snapshot, rerun from known version).
+
+### Phase 2 Exit Criteria
+
+- Local migration flow runs without Flyway installed.
+- Central migration flow remains Flyway-based and unchanged.
+- `./scripts/init-db.sh local` succeeds on clean and already-migrated states.
+- README and architecture docs match actual script behavior.
+- ADR accepted and linked from roadmap/architecture docs.
+
+---
+
+## Phase 3 — Complete Flyway Removal (Implemented)
+
+Goal: unify both central and local migration targets on ArcadeDB HTTP API
+runners, eliminating all Flyway dependencies from the project.
+
+### Deliverables
+
+- [x] Rewrite `scripts/migrate.sh` as ArcadeDB HTTP API runner for central
+  migrations (matching local runner pattern)
+- [x] Remove `central/flyway.toml` and `local/flyway.toml`
+- [x] Remove Flyway-specific environment variables (`ARCADEDB_USER`,
+  `ARCADEDB_PASSWORD`, `FLYWAY_DOCKER_IMAGE`) from `.env.example`
+- [x] Remove Flyway runtime entries from `.gitignore`
+- [x] Update `scripts/init-db.sh` to call `migrate.sh` without `central` arg
+- [x] Update README, architecture docs, and roadmap
+- [x] Create ADR-002 documenting the complete Flyway removal decision
+- [x] Update ADR-001 status to superseded
+- [x] Remove all Flyway references from nomourgoi agents, prompts, and context
+- [x] Remove all Flyway references from nomothetic documentation
+
+### Phase 3 Exit Criteria
+
+- Zero Flyway references remain in the workspace.
+- `./scripts/migrate.sh migrate` applies central migrations via ArcadeDB API.
+- `./scripts/migrate.sh validate` validates central migration checksums.
+- `./scripts/init-db.sh all` succeeds end-to-end.
+- ADR-002 accepted and linked.
+
 - **V2 Local — AI Context:** On-device intelligence data (learned patterns,
   environment models) if local AI features are added.
 - **Telemetry partitioning:** Time-based pruning of `TelemetryReading`

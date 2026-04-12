@@ -18,7 +18,7 @@
 # The script:
 #   1. If a pi-host is specified, rsyncs the nomographic directory to the Pi.
 #   2. Ensures the local data directory exists.
-#   3. Runs local migrations via scripts/migrate.sh.
+#   3. Runs local migrations via scripts/migrate-local.sh.
 #
 # Exit codes:
 #   0  success
@@ -77,7 +77,7 @@ _local_data="${2:-local/data}"
 cd "${_remote_dir}"
 mkdir -p "${_local_data}"
 echo "  Data directory: ${_local_data} ✓"
-./scripts/migrate.sh local migrate
+./scripts/migrate-local.sh migrate
 END_REMOTE
 
     echo "✓ Local database deployed to ${PI_HOST}."
@@ -90,7 +90,7 @@ else
     echo "  Data directory: ${LOCAL_DATA} ✓"
 
     echo "==> Running local migrations..."
-    ./scripts/migrate.sh local migrate
+    ./scripts/migrate-local.sh migrate
 
     echo "✓ Local database migrations applied."
 fi

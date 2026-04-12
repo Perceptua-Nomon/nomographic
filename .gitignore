@@ -27,9 +27,6 @@ replay_pid*
 central/data/
 local/data/
 
-# Flyway runtime
-.flyway/
-
 # IDE
 .idea/
 *.iml
@@ -38,4 +35,3 @@ local/data/
 # Environment / secrets
 .env
 *.env.local
-flyway-*.secret.toml
