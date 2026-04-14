@@ -32,6 +32,7 @@ ARCADEDB_CENTRAL_DB="nomon_central"
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
 
+# shellcheck disable=SC2034
 REPO_RELATIVE_PREFIX="central/sql"
 
 source "$SCRIPT_DIR/lib/migrate-common.sh"

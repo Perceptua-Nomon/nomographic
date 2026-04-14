@@ -40,6 +40,7 @@ BASE_URL="http://127.0.0.1:${LOCAL_MIGRATOR_HTTP_PORT}"
 AUTH="root:${LOCAL_MIGRATOR_ROOT_PASSWORD}"
 CONTAINER_NAME="nomon-local-migrator-$$"
 
+# shellcheck disable=SC2034
 REPO_RELATIVE_PREFIX="local/sql"
 
 source "$SCRIPT_DIR/lib/migrate-common.sh"

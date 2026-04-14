@@ -30,6 +30,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
+# ── Load .env ──────────────────────────────────────────────────────────────────
+
+if [ -f "$PROJECT_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$PROJECT_DIR/.env"
+    set +a
+fi
+
 # ── Help ───────────────────────────────────────────────────────────────────────
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
