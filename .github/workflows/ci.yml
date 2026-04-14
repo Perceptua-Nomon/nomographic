@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # check: shellcheck + migration naming + compose config
+  # ──────────────────────────────────────────────────────────────────────────
+  check:
+    name: Check (shellcheck + migrations + compose)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck -x --severity=warning scripts/*.sh scripts/lib/*.sh
+
+      - name: Migration naming conventions
+        run: |
+          fail=0
+          for f in $(find central/sql local/sql -maxdepth 1 -type f -name '*.sql' 2>/dev/null); do
+            base=$(basename "$f")
+            if ! echo "$base" | grep -qE '^V[0-9]+__[a-z_]+\.sql$'; then
+              echo "::error file=$f::$base does not match V<N>__<description>.sql"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Docker Compose config
+        env:
+          ARCADEDB_ROOT_PASSWORD: ci-placeholder
+        run: docker compose config --quiet

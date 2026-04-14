@@ -49,6 +49,15 @@ run_sql() {
         -d "{\"language\": \"sql\", \"command\": \"${sql}\"}"
 }
 
+run_cypher() {
+    local cypher="$1"
+    curl -s \
+        -u "$AUTH" \
+        -X POST "$API_URL" \
+        -H "Content-Type: application/json" \
+        -d "{\"language\": \"cypher\", \"command\": \"${cypher}\"}"
+}
+
 record_count() {
     local sql="$1"
     local result
@@ -56,6 +65,8 @@ record_count() {
     # ArcadeDB returns result array; extract count from first record
     echo "$result" | grep -o '"count":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "0"
 }
+
+NOW=$(date -u '+%Y-%m-%d %H:%M:%S')
 
 echo "==> Seeding nomon_central with test data ..."
 
@@ -67,7 +78,7 @@ if [ "$USER_COUNT" -gt 0 ] 2>/dev/null; then
     echo "    Test user already exists, skipping."
 else
     echo "    Inserting test user ..."
-    run_sql "INSERT INTO User SET email = 'test@nomon.dev', display_name = 'Test User', password_hash = '${TEST_PASSWORD_HASH}', created_at = sysdate(), active = true" > /dev/null
+    run_cypher "CREATE (u:User {email: 'test@nomon.dev', display_name: 'Test User', password_hash: '${TEST_PASSWORD_HASH}', created_at: '${NOW}', active: true})" > /dev/null
     echo "    Test user created."
 fi
 
@@ -79,7 +90,7 @@ if [ "$VEHICLE_COUNT" -gt 0 ] 2>/dev/null; then
     echo "    Test vehicle already exists, skipping."
 else
     echo "    Inserting test vehicle ..."
-    run_sql "INSERT INTO Vehicle SET vin = 'NOMON-TEST-001', model = 'explorer-v1', registered_at = sysdate()" > /dev/null
+    run_cypher "CREATE (v:Vehicle {vin: 'NOMON-TEST-001', model: 'explorer-v1', registered_at: '${NOW}'})" > /dev/null
     echo "    Test vehicle created."
 fi
 
@@ -91,7 +102,7 @@ if [ "$EDGE_COUNT" -gt 0 ] 2>/dev/null; then
     echo "    OwnsDevice edge already exists, skipping."
 else
     echo "    Creating OwnsDevice edge ..."
-    run_sql "CREATE EDGE OwnsDevice FROM (SELECT FROM User WHERE email = 'test@nomon.dev') TO (SELECT FROM Vehicle WHERE vin = 'NOMON-TEST-001') SET registered_at = sysdate(), role = 'owner'" > /dev/null
+    run_cypher "MATCH (u:User {email: 'test@nomon.dev'}), (v:Vehicle {vin: 'NOMON-TEST-001'}) CREATE (u)-[:OwnsDevice {registered_at: '${NOW}', role: 'owner'}]->(v)" > /dev/null
     echo "    OwnsDevice edge created."
 fi
 

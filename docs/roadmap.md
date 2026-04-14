@@ -24,6 +24,7 @@
 | 2 | Local Migrations Without Flyway | ✅ Complete |
 | 3 | Complete Flyway Removal | ✅ Complete |
 | 4 | Schema Lineage Tracking via MetaTypes | ✅ Complete |
+| 5 | DX Improvements (Makefile, CI/CD) | ✅ Complete |
 
 ---
 
@@ -211,6 +212,36 @@ vertices and Supersedes edges.
 - MetaType records are idempotent — re-running does not duplicate records.
 - `SchemaMigration`, `*Meta`, and `Supersedes` types are excluded from
   lineage tracking.
+
+## Phase 5 — DX Improvements (Makefile, CI/CD) (Implemented)
+
+Goal: improve developer experience with a unified task runner, automated
+CI checks, and reliable environment variable loading.
+
+### Deliverables
+
+- [x] Fix `.env` loading in `scripts/deploy-local.sh` — source `.env` file
+  before referencing variables so embedded ArcadeDB deployment uses
+  configured credentials
+- [x] `Makefile` with 16 targets covering the full development workflow:
+  `up`, `down`, `restart`, `logs`, `ps`, `init`, `migrate-central`,
+  `migrate-local`, `migrate-all`, `seed`, `validate-central`,
+  `validate-local`, `reconcile-central`, `reconcile-local`, `clean`,
+  `help`
+- [x] `Makefile` `help` target — auto-generates target documentation from
+  inline comments
+- [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`) with three
+  checks:
+  - ShellCheck lint for all shell scripts
+  - Migration naming convention validation (`V<N>__<name>.sql`)
+  - Docker Compose config validation (`docker compose config --quiet`)
+
+### Phase 5 Exit Criteria
+
+- `make help` lists all targets with descriptions.
+- `make up && make migrate-all && make seed` succeeds end-to-end.
+- `deploy-local.sh` loads `.env` before variable references.
+- CI workflow passes on clean checkout.
 
 ---
 
