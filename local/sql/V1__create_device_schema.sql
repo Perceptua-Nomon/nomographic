@@ -11,10 +11,18 @@
 -- -------------------------------------------------------------
 CREATE VERTEX TYPE DeviceState IF NOT EXISTS;
 CREATE PROPERTY DeviceState.device_id IF NOT EXISTS STRING;
+ALTER PROPERTY DeviceState.device_id MANDATORY true;
+ALTER PROPERTY DeviceState.device_id NOTNULL true;
 CREATE PROPERTY DeviceState.firmware_version IF NOT EXISTS STRING;
+ALTER PROPERTY DeviceState.firmware_version MANDATORY true;
 CREATE PROPERTY DeviceState.boot_count IF NOT EXISTS LONG;
+ALTER PROPERTY DeviceState.boot_count MANDATORY true;
+ALTER PROPERTY DeviceState.boot_count NOTNULL true;
 CREATE PROPERTY DeviceState.last_boot_at IF NOT EXISTS DATETIME;
+ALTER PROPERTY DeviceState.last_boot_at MANDATORY true;
 CREATE PROPERTY DeviceState.status IF NOT EXISTS STRING;
+ALTER PROPERTY DeviceState.status MANDATORY true;
+ALTER PROPERTY DeviceState.status NOTNULL true;
 
 CREATE INDEX IF NOT EXISTS ON DeviceState (device_id) UNIQUE;
 
@@ -25,9 +33,15 @@ CREATE INDEX IF NOT EXISTS ON DeviceState (device_id) UNIQUE;
 -- -------------------------------------------------------------
 CREATE VERTEX TYPE OperationLog IF NOT EXISTS;
 CREATE PROPERTY OperationLog.operation IF NOT EXISTS STRING;
+ALTER PROPERTY OperationLog.operation MANDATORY true;
+ALTER PROPERTY OperationLog.operation NOTNULL true;
 CREATE PROPERTY OperationLog.result IF NOT EXISTS STRING;
+ALTER PROPERTY OperationLog.result MANDATORY true;
+ALTER PROPERTY OperationLog.result NOTNULL true;
 CREATE PROPERTY OperationLog.detail IF NOT EXISTS STRING;
 CREATE PROPERTY OperationLog.occurred_at IF NOT EXISTS DATETIME;
+ALTER PROPERTY OperationLog.occurred_at MANDATORY true;
+ALTER PROPERTY OperationLog.occurred_at NOTNULL true;
 
 CREATE INDEX IF NOT EXISTS ON OperationLog (occurred_at) NOTUNIQUE;
 
@@ -36,4 +50,3 @@ CREATE INDEX IF NOT EXISTS ON OperationLog (occurred_at) NOTUNIQUE;
 -- Links DeviceState to its OperationLog entries.
 -- -------------------------------------------------------------
 CREATE EDGE TYPE Performed IF NOT EXISTS;
-CREATE PROPERTY Performed.occurred_at IF NOT EXISTS DATETIME;

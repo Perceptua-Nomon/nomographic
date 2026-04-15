@@ -37,7 +37,7 @@
 **Deliverables:**
 - [x] `Vehicle` vertex type: `vin`, `model`, `firmware_version`, `registered_at`, `last_seen_at`
 - [x] `TelemetryReading` vertex type: `battery_voltage`, `cpu_temp_c`, `uptime_seconds`, `recorded_at`
-- [x] `HasTelemetry` edge type: links Vehicle → TelemetryReading
+- [x] `ReadFrom` edge type: links TelemetryReading → Vehicle
 - [x] Unique index on `Vehicle.vin`
 - [x] Non-unique index on `TelemetryReading.recorded_at`
 
@@ -68,12 +68,11 @@
   - `active` (BOOLEAN) — soft-delete / account disable flag
 - [x] Unique index on `User.email`
 - [x] `OwnsDevice` edge type (User → Vehicle):
-  - `registered_at` (DATETIME) — when ownership was established
   - `role` (STRING) — access level: `owner`, `operator`, `viewer`
 
 **Graph relationships:**
 ```
-User ──OwnsDevice──▶ Vehicle ──HasTelemetry──▶ TelemetryReading
+User ──OwnsDevice──▶ Vehicle ◀──ReadFrom── TelemetryReading
 ```
 
 **Exit criteria:**
