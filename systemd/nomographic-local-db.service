@@ -1,0 +1,32 @@
+[Unit]
+Description=nomographic local ArcadeDB service
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/nomographic/local-db.env
+ExecStartPre=/bin/mkdir -p ${ARCADEDB_LOCAL_DATA}
+ExecStartPre=-/usr/bin/docker rm -f nomographic-local-db
+ExecStart=/usr/bin/docker run --rm --name nomographic-local-db -p 127.0.0.1:${LOCAL_ARCADEDB_HTTP_PORT}:2480 -p 127.0.0.1:${LOCAL_ARCADEDB_BINARY_PORT}:2424 -e JAVA_OPTS=-Darcadedb.server.rootPassword=${LOCAL_ARCADEDB_ROOT_PASSWORD} -e ARCADEDB_OPTS_MEMORY=${LOCAL_ARCADEDB_OPTS_MEMORY} -v ${ARCADEDB_LOCAL_DATA}:/home/arcadedb/databases ${LOCAL_ARCADEDB_IMAGE}
+ExecStop=/usr/bin/docker stop nomographic-local-db
+Restart=always
+RestartSec=3
+TimeoutStartSec=120
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

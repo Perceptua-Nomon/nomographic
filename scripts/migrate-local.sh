@@ -7,11 +7,20 @@
 # Environment variables:
 #   ARCADEDB_LOCAL_DATA               Path for local embedded data (default: local/data)
 #   ARCADEDB_LOCAL_DB                 Local database name (default: nomon_local)
+#   ARCADEDB_LOCAL_HOST               Local DB host when using running service (default: 127.0.0.1)
+#   ARCADEDB_LOCAL_HTTP_PORT          Local DB API port when using running service
+#                                     (default: LOCAL_MIGRATOR_HTTP_PORT)
+#   ARCADEDB_LOCAL_ROOT_PASSWORD      Root password when using running service
+#                                     (default: LOCAL_ARCADEDB_ROOT_PASSWORD)
+#   LOCAL_ARCADEDB_ROOT_PASSWORD      Shared root password for local service + migrator
+#                                     (default: testpassword)
+#   LOCAL_ARCADEDB_OPTS_MEMORY        Shared ArcadeDB memory options for local service + migrator
 #   LOCAL_MIGRATOR_IMAGE              ArcadeDB Docker image (default: arcadedata/arcadedb:latest)
 #   LOCAL_MIGRATOR_HTTP_PORT          Local temporary migrator HTTP port (default: 2481)
-#   LOCAL_MIGRATOR_ROOT_PASSWORD      Root password used by temporary migrator (default: testpassword)
 #   LOCAL_MIGRATOR_STARTUP_RETRIES    Readiness retries (default: 30)
 #   LOCAL_MIGRATOR_STARTUP_DELAY      Seconds between readiness retries (default: 1)
+#   LOCAL_MIGRATOR_USE_RUNNING_SERVICE 1 to run migrations against existing service
+#                                     (default: 0)
 
 set -euo pipefail
 
@@ -26,23 +35,44 @@ if [ -f "$PROJECT_DIR/.env" ]; then
     set +a
 fi
 
+# Deprecated vars are intentionally ignored.
+unset LOCAL_MIGRATOR_ROOT_PASSWORD LOCAL_MIGRATOR_OPTS_MEMORY
+
 SUBCOMMAND="${1:-migrate}"
 
 ARCADEDB_LOCAL_DATA="${ARCADEDB_LOCAL_DATA:-local/data}"
 ARCADEDB_LOCAL_DB="${ARCADEDB_LOCAL_DB:-nomon_local}"
+LOCAL_ARCADEDB_ROOT_PASSWORD="${LOCAL_ARCADEDB_ROOT_PASSWORD:-testpassword}"
+LOCAL_ARCADEDB_OPTS_MEMORY="${LOCAL_ARCADEDB_OPTS_MEMORY:-}"
 LOCAL_MIGRATOR_IMAGE="${LOCAL_MIGRATOR_IMAGE:-arcadedata/arcadedb:latest}"
 LOCAL_MIGRATOR_HTTP_PORT="${LOCAL_MIGRATOR_HTTP_PORT:-2481}"
-LOCAL_MIGRATOR_ROOT_PASSWORD="${LOCAL_MIGRATOR_ROOT_PASSWORD:-testpassword}"
+LOCAL_MIGRATOR_JAVA_OPTS="${LOCAL_MIGRATOR_JAVA_OPTS:--Darcadedb.server.rootPassword=${LOCAL_ARCADEDB_ROOT_PASSWORD}}"
 LOCAL_MIGRATOR_STARTUP_RETRIES="${LOCAL_MIGRATOR_STARTUP_RETRIES:-30}"
 LOCAL_MIGRATOR_STARTUP_DELAY="${LOCAL_MIGRATOR_STARTUP_DELAY:-1}"
+LOCAL_MIGRATOR_USE_RUNNING_SERVICE="${LOCAL_MIGRATOR_USE_RUNNING_SERVICE:-0}"
 
-BASE_URL="http://127.0.0.1:${LOCAL_MIGRATOR_HTTP_PORT}"
-AUTH="root:${LOCAL_MIGRATOR_ROOT_PASSWORD}"
+ARCADEDB_LOCAL_HOST="${ARCADEDB_LOCAL_HOST:-127.0.0.1}"
+ARCADEDB_LOCAL_HTTP_PORT="${ARCADEDB_LOCAL_HTTP_PORT:-$LOCAL_MIGRATOR_HTTP_PORT}"
+ARCADEDB_LOCAL_ROOT_PASSWORD="${ARCADEDB_LOCAL_ROOT_PASSWORD:-$LOCAL_ARCADEDB_ROOT_PASSWORD}"
+
+# In temporary-container mode, always use the same resolved root password
+# for startup and API auth to prevent mismatches.
+if [[ "$LOCAL_MIGRATOR_USE_RUNNING_SERVICE" != "1" ]]; then
+    if [[ "$LOCAL_MIGRATOR_JAVA_OPTS" =~ -Darcadedb\.server\.rootPassword=([^[:space:]]+) ]]; then
+        ARCADEDB_LOCAL_ROOT_PASSWORD="${BASH_REMATCH[1]}"
+    else
+        ARCADEDB_LOCAL_ROOT_PASSWORD="$LOCAL_ARCADEDB_ROOT_PASSWORD"
+    fi
+fi
+
+BASE_URL="http://${ARCADEDB_LOCAL_HOST}:${ARCADEDB_LOCAL_HTTP_PORT}"
+AUTH="root:${ARCADEDB_LOCAL_ROOT_PASSWORD}"
 CONTAINER_NAME="nomon-local-migrator-$$"
 
 # shellcheck disable=SC2034
 REPO_RELATIVE_PREFIX="local/sql"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/migrate-common.sh"
 
 usage() {
@@ -183,10 +213,14 @@ start_local_migrator() {
     mkdir -p "$host_data_dir"
 
     echo "==> Starting temporary local migrator container (${LOCAL_MIGRATOR_IMAGE}) ..."
+    DOCKER_ENV_OPTS=(-e "JAVA_OPTS=${LOCAL_MIGRATOR_JAVA_OPTS}")
+    if [[ -n "${LOCAL_ARCADEDB_OPTS_MEMORY}" ]]; then
+        DOCKER_ENV_OPTS+=( -e "ARCADEDB_OPTS_MEMORY=${LOCAL_ARCADEDB_OPTS_MEMORY}" )
+    fi
     docker run -d --rm \
         --name "$CONTAINER_NAME" \
         -p "${LOCAL_MIGRATOR_HTTP_PORT}:2480" \
-        -e "JAVA_OPTS=-Darcadedb.server.rootPassword=${LOCAL_MIGRATOR_ROOT_PASSWORD}" \
+        "${DOCKER_ENV_OPTS[@]}" \
         -v "${host_data_dir}:/home/arcadedb/databases" \
         "$LOCAL_MIGRATOR_IMAGE" >/dev/null
 
@@ -361,12 +395,18 @@ case "$SUBCOMMAND" in
         ;;
 esac
 
-require_command docker
 require_command curl
 
 trap cleanup EXIT
 
-start_local_migrator
+if [[ "$LOCAL_MIGRATOR_USE_RUNNING_SERVICE" == "1" ]]; then
+    echo "==> Using running local DB service at ${BASE_URL}"
+    wait_for_arcadedb
+else
+    require_command docker
+    start_local_migrator
+fi
+
 ensure_local_database
 ensure_metadata_schema
 load_migration_files

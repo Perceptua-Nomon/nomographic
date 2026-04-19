@@ -9,7 +9,7 @@ nomographic manages [ArcadeDB](https://arcadedb.com/) schemas for two targets:
 | Instance | Database | Runtime | SQL Directory |
 |----------|----------|---------|---------------|
 | Central | `nomon_central` | Persistent ArcadeDB server (Docker Compose) | `central/sql/` |
-| Local | `nomon_local` | Embedded filesystem DB (temporary Docker container) | `local/sql/` |
+| Local | `nomon_local` | Pi-local systemd managed ArcadeDB service (loopback-only); temporary Docker migrator for local dev workflows | `local/sql/` |
 
 Both targets use custom ArcadeDB HTTP API runners for migration management. After each migration, a post-migration hook automatically creates `{Type}Meta` lineage vertices and `Supersedes` edges to track schema history.
 
@@ -111,6 +111,64 @@ docker compose up -d
 ./scripts/migrate-local.sh reconcile-lineage
 ```
 
+## Pi Local DB Service Deploy
+
+Phase 6 introduces a dedicated local DB systemd service on Pi:
+
+- Unit file in repo: `systemd/nomographic-local-db.service`
+- On-device unit path: `/etc/systemd/system/nomographic-local-db.service`
+- On-device env path: `/etc/nomographic/local-db.env`
+
+`scripts/deploy-local.sh` now uses `.env` as the single source of truth,
+resolves local-service defaults/fallbacks, and uploads only an allowlisted
+payload to `/etc/nomographic/local-db.env`.
+
+### Configure local DB service env
+
+```bash
+# Single source of truth
+cp .env.example .env
+# Edit .env values for your Pi deployment
+```
+
+`deploy-local.sh` only exports this allowlist into the Pi service env file:
+
+- `LOCAL_ARCADEDB_IMAGE`
+- `LOCAL_ARCADEDB_HTTP_PORT`
+- `LOCAL_ARCADEDB_BINARY_PORT`
+- `LOCAL_ARCADEDB_ROOT_PASSWORD`
+- `LOCAL_ARCADEDB_OPTS_MEMORY`
+- `ARCADEDB_LOCAL_DATA`
+- `ARCADEDB_LOCAL_DB`
+
+No other `.env` values are copied into `/etc/nomographic/local-db.env`.
+In particular, `LOCAL_MIGRATOR_*` values are never exported there.
+
+### Deploy to Pi
+
+```bash
+# Uses NOMON_PI_HOST / PI_HOST from .env when host arg is omitted
+./scripts/deploy-local.sh <pi-host>
+```
+
+Deploy flow on Pi:
+
+1. Sync repository content to the remote nomographic directory.
+2. Install/update service unit and `/etc/nomographic/local-db.env`.
+3. Reload systemd, restart service, and wait for `/api/v1/ready`.
+4. Run `./scripts/migrate-local.sh migrate` against the running local DB service.
+5. If any step fails, rollback restores previous unit/env when backups exist,
+	 otherwise keeps deployed unit/env for first-time deploy recovery, and then
+	 attempts to bring the service back to active/ready state.
+
+Rollback behavior notes:
+
+- Optional pre-deploy data snapshot/restore is controlled by
+	`NOMOGRAPHIC_LOCAL_DB_SNAPSHOT` (default: `1`).
+- The script exits non-zero on deploy failure even if rollback recovers service
+	availability, so operators can treat the deploy as failed and investigate.
+
+
 ## Schema Lineage Tracking
 
 After every migration is applied, `scripts/lib/migrate-common.sh` automatically:
@@ -147,10 +205,22 @@ Key variables:
 | `ARCADEDB_ROOT_PASSWORD` | `changeme_before_deploy` | Central root password — **change before any non-local use** |
 | `ARCADEDB_HOST` | `localhost` | Central server host |
 | `ARCADEDB_HTTP_PORT` | `2480` | Central HTTP API port |
-| `ARCADEDB_LOCAL_DATA` | `local/data` | Local embedded DB directory |
+| `ARCADEDB_LOCAL_DATA` | `local/data` | Local DB data directory |
 | `ARCADEDB_LOCAL_DB` | `nomon_local` | Local DB name |
-| `LOCAL_MIGRATOR_IMAGE` | `arcadedata/arcadedb:latest` | Docker image for local migration runner |
-| `LOCAL_MIGRATOR_HTTP_PORT` | `2481` | Temporary local migrator API port |
+| `LOCAL_ARCADEDB_IMAGE` | `arcadedata/arcadedb:latest` | Shared local runtime image default (Pi local DB service; migrator default source) |
+| `LOCAL_ARCADEDB_HTTP_PORT` | `2482` | Pi local DB service HTTP API port (runtime service port) |
+| `LOCAL_ARCADEDB_BINARY_PORT` | `2425` | Pi local DB service binary protocol port (runtime service port) |
+| `LOCAL_ARCADEDB_ROOT_PASSWORD` | `changeme_before_deploy` | Baseline local auth password for service and migrator |
+| `LOCAL_ARCADEDB_OPTS_MEMORY` | empty | Shared local memory tuning default |
+| `LOCAL_MIGRATOR_IMAGE` | `arcadedata/arcadedb:latest` | Temporary migrator container image (migrate-local only) |
+| `LOCAL_MIGRATOR_HTTP_PORT` | `2481` | Temporary migrator HTTP API port (not the Pi service port) |
+| `LOCAL_MIGRATOR_JAVA_OPTS` | empty | Temporary migrator JVM opts; may embed rootPassword override |
+
+Namespace boundaries and precedence:
+
+- `LOCAL_ARCADEDB_*` is the shared local runtime namespace: Pi local DB service values and migrator baseline defaults.
+- `LOCAL_MIGRATOR_*` controls temporary migrator behavior only and is never exported by `deploy-local.sh` into `/etc/nomographic/local-db.env`.
+- Migrator auth precedence: baseline `LOCAL_ARCADEDB_ROOT_PASSWORD`, then optional `ARCADEDB_LOCAL_ROOT_PASSWORD`, then highest-precedence rootPassword embedded in `LOCAL_MIGRATOR_JAVA_OPTS` (temporary-container mode).
 
 ## Further Reading
 
