@@ -25,6 +25,8 @@
 | 3 | Complete Flyway Removal | ✅ Complete |
 | 4 | Schema Lineage Tracking via MetaTypes | ✅ Complete |
 | 5 | DX Improvements (Makefile, CI/CD) | ✅ Complete |
+| 6 | Local DB systemd Service + Pi Deploy Rollback Safety | ✅ Complete |
+| 7 | `.env`-Only Local Service Env Consolidation | ✅ Complete |
 
 ---
 
@@ -241,6 +243,128 @@ CI checks, and reliable environment variable loading.
 - `make up && make migrate-all && make seed` succeeds end-to-end.
 - `deploy-local.sh` loads `.env` before variable references.
 - CI workflow passes on clean checkout.
+
+## Phase 6 — Local DB systemd Service + Pi Deploy Rollback Safety (Implemented)
+
+Goal: run the on-device local ArcadeDB instance under a dedicated systemd
+service with isolated environment configuration, and make Pi deployments
+transactional enough to recover from failures while ending with local DB
+service availability.
+
+### 6.1 — Add dedicated local DB service unit + environment file
+
+- [x] Add systemd unit template for Pi local database service:
+  `systemd/nomographic-local-db.service`
+  - Uses `EnvironmentFile=` for all runtime settings
+  - Uses local data path (`ARCADEDB_LOCAL_DATA`) and local DB name
+    (`ARCADEDB_LOCAL_DB`) only (no central settings)
+  - Uses a local-only HTTP port variable (for example
+    `LOCAL_ARCADEDB_HTTP_PORT`) to avoid central port coupling
+  - Includes restart policy and startup ordering suitable for boot-time
+    availability on Raspberry Pi
+- [x] Define local DB service environment variables and namespace
+  (`LOCAL_ARCADEDB_*`, `ARCADEDB_LOCAL_*`) for deployment/runtime separation
+
+Verification:
+- [x] `systemd-analyze verify systemd/nomographic-local-db.service`
+- [x] Unit contains `EnvironmentFile=` and does not hardcode secrets
+
+### 6.2 — Extend deploy-local flow to manage service lifecycle on Pi
+
+- [x] Update `scripts/deploy-local.sh`:
+  - Sync migration scripts and local SQL files to Pi
+  - Install/refresh unit file under `/etc/systemd/system/`
+  - Install/refresh environment file under `/etc/nomographic/`
+  - Run `systemctl daemon-reload`
+  - Start (or restart) `nomographic-local-db.service`
+  - Wait for `/api/v1/ready` on configured local port
+  - Run `./scripts/migrate-local.sh migrate` against the on-device local DB
+    instance
+- [x] Add explicit health-check function for deploy gating
+
+Verification:
+- [x] `./scripts/deploy-local.sh <pi-host>` exits 0 on clean device
+- [x] `ssh <pi-host> systemctl is-active nomographic-local-db.service` returns
+      `active`
+- [x] `ssh <pi-host> curl -sf http://127.0.0.1:${LOCAL_ARCADEDB_HTTP_PORT}/api/v1/ready`
+
+### 6.3 — Rollback semantics and failure-safe end state
+
+- [x] Define rollback checkpoints in `scripts/deploy-local.sh`:
+  - Pre-deploy snapshot of currently installed unit file and env file
+  - Optional pre-deploy local DB data snapshot (configurable flag) for
+    migration rollback scenarios
+- [x] On failure at any step:
+  - Restore previous unit/env files if they were replaced
+  - Run `systemctl daemon-reload`
+  - Attempt to recover service with known-good config when backup exists,
+    otherwise continue with newly deployed service/env for first-time deploys
+  - If migration step fails after partial application, execute documented
+    operator playbook: stop service, restore data snapshot, restart service,
+    re-run validate/info checks
+- [x] Guarantee script exit behavior:
+  - Non-zero exit when deploy/migration fails
+  - Best-effort finalizer always runs to ensure service ends `active`
+    (or emits explicit terminal failure if impossible)
+
+Verification:
+- [x] Simulated failure (bad migration or intentionally invalid env) triggers
+      rollback path and logs restored artifacts
+- [x] Post-failure check still reports service `active` when rollback succeeds
+- [x] `./scripts/migrate-local.sh validate` reports no checksum mismatches after
+      rollback restore
+
+### 6.4 — Documentation and operator runbook updates
+
+- [x] Update `docs/architecture.md`:
+  - Add Local Pi service lifecycle subsection
+  - Clarify central server vs local embedded service boundaries
+  - Document deploy + rollback flow sequence
+- [x] Update `README.md` with Pi deployment prerequisites and commands
+- [x] Document rollback operator checklist in `README.md` and
+  `docs/architecture.md` deploy sequence notes (no separate runbook file)
+
+Verification:
+- [x] Fresh operator can perform deploy and rollback using docs only
+- [x] Architecture doc and scripts are command-consistent
+
+### Phase 6 Exit Criteria
+
+- Local DB runs under `nomographic-local-db.service` on Pi with dedicated
+  environment file.
+- `scripts/deploy-local.sh` manages service lifecycle and applies local
+  migrations on-device.
+- Failed deploy attempts execute rollback and leave service available.
+- Local migration lineage and checksum validation remain intact after deploy
+  and rollback cycles.
+
+## Phase 7 — `.env`-Only Local Service Env Consolidation (Implemented)
+
+Goal: remove dedicated local-service env template files and make `.env` the only source
+for local DB service deploy configuration, while still restricting what reaches
+`/etc/nomographic/local-db.env` on Pi.
+
+### Deliverables
+
+- [x] `scripts/deploy-local.sh` no longer reads dedicated local-service env
+  template files
+- [x] Added explicit allowlist payload generation from `.env` for service env
+  install (`LOCAL_ARCADEDB_*`, `ARCADEDB_LOCAL_*` only)
+- [x] Added fallback/default resolution for local service vars:
+  - `LOCAL_ARCADEDB_ROOT_PASSWORD` falls back to `testpassword`
+  - local service ports/image/memory/db/data get deterministic defaults
+- [x] Preserved rollback semantics and service availability recovery behavior
+- [x] Removed the dedicated local-service env template file from repository
+- [x] Updated `.env.example`, README, and architecture docs for single-source
+  `.env` flow
+
+### Phase 7 Exit Criteria
+
+- `deploy-local.sh` uses only `.env` as config input for Pi local service env.
+- `/etc/nomographic/local-db.env` is generated from an explicit allowlist,
+  not copied from full `.env`.
+- Deploy rollback behavior remains unchanged and continues attempting service
+  availability recovery.
 
 ---
 
