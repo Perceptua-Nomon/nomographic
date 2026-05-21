@@ -13,6 +13,8 @@
 #   NOMON_SSH_KEY                  Path to SSH private key (optional)
 #   NOMON_REMOTE_DIR               Remote nomographic directory on Pi
 #                                   (default: ~/perceptua-nomon/nomographic)
+#   sudo password env var          Optional sudo password for non-interactive
+#                                   remote sudo operations
 #   NOMOGRAPHIC_LOCAL_DB_SNAPSHOT  1 to snapshot local DB data before deploy
 #                                   (default: 1)
 #
@@ -96,6 +98,8 @@ if [[ -z "$LOCAL_SERVICE_ENV_PAYLOAD_B64" ]]; then
     exit 1
 fi
 
+_NOMON_SUDO_PASS_QUOTED="$(printf '%q' "${NOMON_SUDO_PASS:-}")"
+
 if [[ -n "$PI_HOST" ]]; then
     RSYNC_OPTS=(
         --archive
@@ -123,7 +127,8 @@ if [[ -n "$PI_HOST" ]]; then
     fi
 
     echo "==> Installing local DB service and applying migrations on ${PI_HOST}..."
-    ssh "${SSH_OPTS[@]}" "$PI_HOST" bash -ls -- \
+    ssh "${SSH_OPTS[@]}" "$PI_HOST" \
+        "NOMON_SUDO_PASS=${_NOMON_SUDO_PASS_QUOTED} bash -ls \"\$@\"" -- \
         "$REMOTE_DIR" \
         "$LOCAL_SERVICE_ENV_PAYLOAD_B64" \
         "$SERVICE_HTTP_PORT" \
@@ -143,6 +148,19 @@ snapshot_enabled="${7:-1}"
 remote_data_path_default="/var/lib/nomographic/local-db"
 data_path_was_relative=0
 data_path_rewritten_for_systemd=0
+
+if [[ -n "${NOMON_SUDO_PASS:-}" ]]; then
+    _askpass_script="$(mktemp)"
+    chmod 700 "${_askpass_script}"
+    cat > "${_askpass_script}" <<EOSUDOPASS
+printf '%s\n' "${NOMON_SUDO_PASS}"
+EOSUDOPASS
+    export SUDO_ASKPASS="${_askpass_script}"
+    trap 'rm -f "${_askpass_script}"' EXIT
+    sudo() { command sudo -A "$@"; }
+else
+    sudo() { command sudo "$@"; }
+fi
 
 if [[ "$remote_dir" == ~* ]]; then
     remote_dir="${remote_dir/#\~/${HOME}}"
