@@ -3,10 +3,10 @@ PI_HOST ?=
 .PHONY: up down init init-central init-local migrate-central migrate-local validate-central validate-local seed deploy-local check clean help
 
 up:
-	docker compose up -d
+	docker compose --env-file .env.central up -d
 
 down:
-	docker compose down
+	docker compose --env-file .env.central down
 
 init:
 	./scripts/init-db.sh all
@@ -54,8 +54,8 @@ clean:
 
 help:
 	@echo "Available targets:"
-	@echo "  up               - Start ArcadeDB container (docker compose up -d)"
-	@echo "  down             - Stop ArcadeDB container (docker compose down)"
+	@echo "  up               - Start ArcadeDB container (docker compose --env-file .env.central up -d)"
+	@echo "  down             - Stop ArcadeDB container (docker compose --env-file .env.central down)"
 	@echo "  init             - Create databases and run all migrations"
 	@echo "  init-central     - Create and migrate central database only"
 	@echo "  init-local       - Create and migrate local database only"

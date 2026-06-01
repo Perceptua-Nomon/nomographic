@@ -33,5 +33,5 @@ local/data/
 .vscode/
 
 # Environment / secrets
-.env
-*.env.local
+.env.central
+.env.local

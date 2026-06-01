@@ -21,11 +21,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Load project .env so script credentials match docker compose defaults.
-if [ -f "$PROJECT_DIR/.env" ]; then
+# Load project .env.central so script credentials match docker compose defaults.
+if [ -f "$PROJECT_DIR/.env.central" ]; then
     set -a
     # shellcheck disable=SC1091
-    . "$PROJECT_DIR/.env"
+    . "$PROJECT_DIR/.env.central"
     set +a
 fi
 

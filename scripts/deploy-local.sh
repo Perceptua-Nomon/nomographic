@@ -31,10 +31,10 @@ set -eEuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
-if [ -f "$PROJECT_DIR/.env" ]; then
+if [ -f "$PROJECT_DIR/.env.local" ]; then
     set -a
     # shellcheck disable=SC1091
-    . "$PROJECT_DIR/.env"
+    . "$PROJECT_DIR/.env.local"
     set +a
 fi
 
