@@ -19,24 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Load project .env so script credentials match docker compose defaults.
-if [ -f "$PROJECT_DIR/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . "$PROJECT_DIR/.env"
-    set +a
-fi
-
 TARGET="${1:-all}"
-
-ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
-ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
-ARCADEDB_LOCAL_DATA="${ARCADEDB_LOCAL_DATA:-local/data}"
-INIT_DB_RETRIES="${INIT_DB_RETRIES:-30}"
-INIT_DB_RETRY_DELAY="${INIT_DB_RETRY_DELAY:-2}"
-
-BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 
 usage() {
     echo "Usage: $0 [central|local|all]"
@@ -48,6 +31,26 @@ usage() {
     echo "  local      Create and migrate local database only"
     echo "  all        Create and migrate both databases (default)"
     exit 1
+}
+
+# Source the central env (ARCADEDB_HOST/PORT/ROOT_PASSWORD, INIT_DB_*)
+load_central_env() {
+    if [ -f "$PROJECT_DIR/.env.central" ]; then
+        set -a
+        # shellcheck disable=SC1091
+        . "$PROJECT_DIR/.env.central"
+        set +a
+    fi
+}
+
+# Source the local env (ARCADEDB_LOCAL_DATA, LOCAL_* vars)
+load_local_env() {
+    if [ -f "$PROJECT_DIR/.env.local" ]; then
+        set -a
+        # shellcheck disable=SC1091
+        . "$PROJECT_DIR/.env.local"
+        set +a
+    fi
 }
 
 wait_for_arcadedb() {
@@ -96,6 +99,14 @@ create_local_database() {
 }
 
 init_central() {
+    load_central_env
+    ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
+    ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
+    ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
+    INIT_DB_RETRIES="${INIT_DB_RETRIES:-30}"
+    INIT_DB_RETRY_DELAY="${INIT_DB_RETRY_DELAY:-2}"
+    BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
+
     wait_for_arcadedb
     create_central_database
     echo "==> Running central migrations ..."
@@ -103,6 +114,9 @@ init_central() {
 }
 
 init_local() {
+    load_local_env
+    ARCADEDB_LOCAL_DATA="${ARCADEDB_LOCAL_DATA:-local/data}"
+
     create_local_database
     echo "==> Running local migrations ..."
     ARCADEDB_LOCAL_DATA="$ARCADEDB_LOCAL_DATA" \
@@ -117,8 +131,9 @@ case "$TARGET" in
         init_local
         ;;
     all)
-        init_central
-        init_local
+        # Use subshells to prevent central vars from leaking into local init and vice versa.
+        (init_central)
+        (init_local)
         ;;
     *)
         echo "Error: unknown target '${TARGET}'."

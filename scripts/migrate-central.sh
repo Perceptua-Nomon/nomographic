@@ -15,10 +15,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$PROJECT_DIR/central/sql"
 
-if [ -f "$PROJECT_DIR/.env" ]; then
+if [ -f "$PROJECT_DIR/.env.central" ]; then
     set -a
     # shellcheck disable=SC1091
-    . "$PROJECT_DIR/.env"
+    . "$PROJECT_DIR/.env.central"
     set +a
 fi
 

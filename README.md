@@ -55,12 +55,15 @@ Rules:
 ## Quick Start
 
 ```bash
-# 1) Copy and configure environment
-cp .env.example .env
-# Edit .env — set ARCADEDB_ROOT_PASSWORD
+# 1) Copy and configure environment files
+cp .env.central.example .env.central
+# Edit .env.central — set ARCADEDB_ROOT_PASSWORD
+
+cp .env.local.example .env.local
+# Edit .env.local — set NOMON_PI_HOST, NOMON_SUDO_PASS, etc.
 
 # 2) Start central ArcadeDB server
-docker compose up -d
+docker compose --env-file .env.central up -d
 
 # 3) Initialize both targets (creates DBs, applies all migrations, runs lineage hook)
 ./scripts/init-db.sh
@@ -119,16 +122,16 @@ Phase 6 introduces a dedicated local DB systemd service on Pi:
 - On-device unit path: `/etc/systemd/system/nomographic-local-db.service`
 - On-device env path: `/etc/nomographic/local-db.env`
 
-`scripts/deploy-local.sh` now uses `.env` as the single source of truth,
+`scripts/deploy-local.sh` uses `.env.local` as the single source of truth,
 resolves local-service defaults/fallbacks, and uploads only an allowlisted
 payload to `/etc/nomographic/local-db.env`.
 
 ### Configure local DB service env
 
 ```bash
-# Single source of truth
-cp .env.example .env
-# Edit .env values for your Pi deployment
+# Local deployment env
+cp .env.local.example .env.local
+# Edit .env.local values for your Pi deployment
 ```
 
 `deploy-local.sh` only exports this allowlist into the Pi service env file:
@@ -141,13 +144,13 @@ cp .env.example .env
 - `ARCADEDB_LOCAL_DATA`
 - `ARCADEDB_LOCAL_DB`
 
-No other `.env` values are copied into `/etc/nomographic/local-db.env`.
+No other `.env.local` values are copied into `/etc/nomographic/local-db.env`.
 In particular, `LOCAL_MIGRATOR_*` values are never exported there.
 
 ### Deploy to Pi
 
 ```bash
-# Uses NOMON_PI_HOST / PI_HOST from .env when host arg is omitted
+# Uses NOMON_PI_HOST / PI_HOST from .env.local when host arg is omitted
 ./scripts/deploy-local.sh <pi-host>
 ```
 
@@ -192,10 +195,16 @@ The `reconcile-lineage` subcommand re-runs the hook for all already-applied migr
 
 ## Environment
 
-Copy example config:
+Two separate env files:
+
+- `.env.central` — central ArcadeDB server + `init-db.sh`/`migrate-central.sh`/`seed-central.sh` settings
+- `.env.local` — Pi deploy credentials + local embedded DB settings
+
+Copy example configs:
 
 ```bash
-cp .env.example .env
+cp .env.central.example .env.central
+cp .env.local.example .env.local
 ```
 
 Key variables:
