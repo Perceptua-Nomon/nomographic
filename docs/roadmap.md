@@ -368,10 +368,18 @@ for local DB service deploy configuration, while still restricting what reaches
 
 ---
 
+> **Note (2026-06-27):** the V1 central `TelemetryReading` vertex and `ReadFrom`
+> edge are now actively consumed by nomothetic **Phase 25** (Fleet Telemetry
+> History): a central-mode MQTT consumer writes `TelemetryReading` rows linked to
+> their `Vehicle` via `ReadFrom`, and `GET /api/fleet/devices/{vin}/telemetry`
+> serves them back to the nomotactic dashboard (nomotactic Phase 4). No schema
+> change was required. A `ReadFrom` / `recorded_at` composite index is a possible
+> follow-up if query volume warrants — not needed for the current MVP.
+
 - **V2 Local — AI Context:** On-device intelligence data (learned patterns,
   environment models) if local AI features are added.
 - **Telemetry partitioning:** Time-based pruning of `TelemetryReading`
-  vertices for long-running deployments.
+  vertices for long-running deployments (now that Phase 25 writes them).
 - **Central — Autonomy telemetry schema (deferred):** `AutonomyRun` and
   `AutonomyEvent` vertex types to persist autonomy run records and lifecycle
   events from the brain. Tracks the downstream half of autonomon Phase 7
