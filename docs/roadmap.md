@@ -372,3 +372,10 @@ for local DB service deploy configuration, while still restricting what reaches
   environment models) if local AI features are added.
 - **Telemetry partitioning:** Time-based pruning of `TelemetryReading`
   vertices for long-running deployments.
+- **Central — Autonomy telemetry schema (deferred):** `AutonomyRun` and
+  `AutonomyEvent` vertex types to persist autonomy run records and lifecycle
+  events from the brain. Tracks the downstream half of autonomon Phase 7
+  (Autonomy Telemetry to ArcadeDB), which is itself deferred pending the
+  device→central transport/auth design; the matching ingestion endpoint is
+  `POST /api/telemetry/autonomy` (nomothetic, central mode). Build alongside
+  that phase, not before.
