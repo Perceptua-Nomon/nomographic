@@ -30,6 +30,7 @@ ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
 ARCADEDB_CENTRAL_DB="nomon_central"
 
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
+# shellcheck disable=SC2034  # consumed by curl_auth() in the sourced curl-auth.sh (dynamic scoping)
 AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
 
 # shellcheck disable=SC2034

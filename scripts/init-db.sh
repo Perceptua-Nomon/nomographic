@@ -77,6 +77,7 @@ create_central_database() {
     local response
     local http_code
     # Capture both body and status code in a single request
+    # shellcheck disable=SC2034  # consumed by curl_auth() in the sourced curl-auth.sh (dynamic scoping)
     local AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
     response=$(curl_auth -s -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/server" \

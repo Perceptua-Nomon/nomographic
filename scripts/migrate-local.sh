@@ -66,6 +66,7 @@ if [[ "$LOCAL_MIGRATOR_USE_RUNNING_SERVICE" != "1" ]]; then
 fi
 
 BASE_URL="http://${ARCADEDB_LOCAL_HOST}:${ARCADEDB_LOCAL_HTTP_PORT}"
+# shellcheck disable=SC2034  # consumed by curl_auth() in the sourced curl-auth.sh (dynamic scoping)
 AUTH="root:${ARCADEDB_LOCAL_ROOT_PASSWORD}"
 CONTAINER_NAME="nomon-local-migrator-$$"
 
