@@ -73,6 +73,8 @@ CONTAINER_NAME="nomon-local-migrator-$$"
 REPO_RELATIVE_PREFIX="local/sql"
 
 # shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/curl-auth.sh"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/migrate-common.sh"
 
 usage() {
@@ -120,8 +122,7 @@ api_server_command() {
     local command="$1"
     local payload
     payload="{\"command\":\"$(escape_json "$command")\"}"
-    curl -sS -w "\n%{http_code}" \
-        -u "$AUTH" \
+    curl_auth -sS -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/server" \
         -H "Content-Type: application/json" \
         -d "$payload"
@@ -132,8 +133,7 @@ api_db_sql() {
     local lang="${2:-sqlscript}"
     local payload
     payload="{\"language\":\"${lang}\",\"command\":\"$(escape_json "$sql")\"}"
-    curl -sS -w "\n%{http_code}" \
-        -u "$AUTH" \
+    curl_auth -sS -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/command/${ARCADEDB_LOCAL_DB}" \
         -H "Content-Type: application/json" \
         -d "$payload"

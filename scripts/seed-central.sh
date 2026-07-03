@@ -37,13 +37,15 @@ BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 API_URL="${BASE_URL}/api/v1/command/nomon_central"
 AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/curl-auth.sh"
+
 # Pre-generated bcrypt hash of "testpassword123" (10 rounds)
 TEST_PASSWORD_HASH='$2b$10$7xYbWolLGj/pkV7gSTPgIeXCrC93VLuhEzCL.yIR3EGKSMw14QKFO'
 
 run_sql() {
     local sql="$1"
-    curl -s \
-        -u "$AUTH" \
+    curl_auth -s \
         -X POST "$API_URL" \
         -H "Content-Type: application/json" \
         -d "{\"language\": \"sql\", \"command\": \"${sql}\"}"
@@ -51,8 +53,7 @@ run_sql() {
 
 run_cypher() {
     local cypher="$1"
-    curl -s \
-        -u "$AUTH" \
+    curl_auth -s \
         -X POST "$API_URL" \
         -H "Content-Type: application/json" \
         -d "{\"language\": \"cypher\", \"command\": \"${cypher}\"}"

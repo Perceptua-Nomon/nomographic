@@ -19,6 +19,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/curl-auth.sh"
+
 TARGET="${1:-all}"
 
 usage() {
@@ -74,8 +77,8 @@ create_central_database() {
     local response
     local http_code
     # Capture both body and status code in a single request
-    response=$(curl -s -w "\n%{http_code}" \
-        -u "root:${ARCADEDB_ROOT_PASSWORD}" \
+    local AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
+    response=$(curl_auth -s -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/server" \
         -H "Content-Type: application/json" \
         -d '{"command": "create database nomon_central"}')
