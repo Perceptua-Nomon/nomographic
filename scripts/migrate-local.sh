@@ -66,12 +66,15 @@ if [[ "$LOCAL_MIGRATOR_USE_RUNNING_SERVICE" != "1" ]]; then
 fi
 
 BASE_URL="http://${ARCADEDB_LOCAL_HOST}:${ARCADEDB_LOCAL_HTTP_PORT}"
+# shellcheck disable=SC2034  # consumed by curl_auth() in the sourced curl-auth.sh (dynamic scoping)
 AUTH="root:${ARCADEDB_LOCAL_ROOT_PASSWORD}"
 CONTAINER_NAME="nomon-local-migrator-$$"
 
 # shellcheck disable=SC2034
 REPO_RELATIVE_PREFIX="local/sql"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/curl-auth.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/migrate-common.sh"
 
@@ -120,8 +123,7 @@ api_server_command() {
     local command="$1"
     local payload
     payload="{\"command\":\"$(escape_json "$command")\"}"
-    curl -sS -w "\n%{http_code}" \
-        -u "$AUTH" \
+    curl_auth -sS -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/server" \
         -H "Content-Type: application/json" \
         -d "$payload"
@@ -132,8 +134,7 @@ api_db_sql() {
     local lang="${2:-sqlscript}"
     local payload
     payload="{\"language\":\"${lang}\",\"command\":\"$(escape_json "$sql")\"}"
-    curl -sS -w "\n%{http_code}" \
-        -u "$AUTH" \
+    curl_auth -sS -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/command/${ARCADEDB_LOCAL_DB}" \
         -H "Content-Type: application/json" \
         -d "$payload"

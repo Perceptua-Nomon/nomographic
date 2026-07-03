@@ -30,11 +30,13 @@ ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
 ARCADEDB_CENTRAL_DB="nomon_central"
 
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
+# shellcheck disable=SC2034  # consumed by curl_auth() in the sourced curl-auth.sh (dynamic scoping)
 AUTH="root:${ARCADEDB_ROOT_PASSWORD}"
 
 # shellcheck disable=SC2034
 REPO_RELATIVE_PREFIX="central/sql"
 
+source "$SCRIPT_DIR/lib/curl-auth.sh"
 source "$SCRIPT_DIR/lib/migrate-common.sh"
 
 usage() {
@@ -83,8 +85,7 @@ api_db_sql() {
     local lang="${2:-sqlscript}"
     local payload
     payload="{\"language\":\"${lang}\",\"command\":\"$(escape_json "$sql")\"}"
-    curl -sS -w "\n%{http_code}" \
-        -u "$AUTH" \
+    curl_auth -sS -w "\n%{http_code}" \
         -X POST "${BASE_URL}/api/v1/command/${ARCADEDB_CENTRAL_DB}" \
         -H "Content-Type: application/json" \
         -d "$payload"
