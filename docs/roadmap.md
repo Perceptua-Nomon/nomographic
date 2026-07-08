@@ -9,6 +9,7 @@
 | V1 | Vehicle & Telemetry Schema | ✅ Complete |
 | V2 | User & Device Ownership Schema | ✅ Complete |
 | V3 | Refresh Token Storage | ✅ Complete |
+| V4 | Autonomy Run/Event Schema | ✅ Complete |
 
 ### Local Database
 

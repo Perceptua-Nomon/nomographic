@@ -35,3 +35,7 @@ local/data/
 # Environment / secrets
 .env.central
 .env.local
+
+# Claude Code local config
+CLAUDE.md
+.claude/
